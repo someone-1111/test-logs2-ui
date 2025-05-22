@@ -34,17 +34,27 @@
 <body>
   <h1>Logs Moderación r/chile (Paginado Backend)</h1>
 
-  <label for="autor">Autor:</label>
-  <input type="text" id="autor" placeholder="Buscar por autor..." />
+  <div>
+    <label for="autor">Afectado:</label>
+    <input type="text" id="autor" placeholder="Buscar por afectado..." />
 
-  <label for="accion">Acción:</label>
-  <select id="accion">
-    <option value="">Todas</option>
-    <option value="removelink">removelink</option>
-    <option value="removecomment">removecomment</option>
-    <option value="approvelink">approvelink</option>
-    <option value="approvecomment">approvecomment</option>
-  </select>
+    <label for="moderador">Moderador:</label>
+    <input type="text" id="moderador" placeholder="Buscar por moderador">
+
+    <label for="accion">Acción:</label>
+    <select id="accion">
+      <option value="">Todas</option>
+      <option value="removelink">removelink</option>
+      <option value="removecomment">removecomment</option>
+      <option value="approvelink">approvelink</option>
+      <option value="approvecomment">approvecomment</option>
+      <option value="banuser">banuser</option>
+      <option value="unbanuser">unbanuser</option>
+      <option value="distinguish">distinguish</option>
+      <option value="sticky">sticky</option>
+      <option value="addremovalreason">addremovalreason</option>
+    </select>
+  </div>
 
   <button onclick="cargarDatos()">Buscar</button>
 
@@ -78,10 +88,16 @@ let totalResultados = 0;
 let debounceTimer;
 
 const autorInput = document.getElementById("autor");
+const moderadorInput = document.getElementById("moderador");
 const accionSelect = document.getElementById("accion");
 
 // Al cambiar autor o acción, reinicia página a 1 y recarga
 autorInput.addEventListener("input", () => {
+  pagina = 1;
+  debounceCargarDatos();
+});
+
+moderadorInput.addEventListener("input", () => {
   pagina = 1;
   debounceCargarDatos();
 });
@@ -101,12 +117,14 @@ function debounceCargarDatos() {
 
 async function cargarDatos() {
   const autor = autorInput.value.trim();
+  const moderador = moderadorInput.value.trim();
   const accion = accionSelect.value;
 
   const params = new URLSearchParams();
   params.append("page", pagina);
   params.append("limit", porPagina);
   if (autor) params.append("author", autor);
+  if (moderador) params.append("mod", moderador);
   if (accion) params.append("action", accion);
 
   try {
