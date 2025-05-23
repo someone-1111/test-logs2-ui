@@ -147,7 +147,7 @@ async function cargarDatos() {
           <td>${item.target_author || "N/A"}</td>
           <td>${item.mod}</td>
           <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
-          <td>${item.detalle || "N/A"}</td>
+          <td>${item.details || "N/A"}</td>
           <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Ver</a></td>
         `;
         tbody.appendChild(fila);
