@@ -82,6 +82,13 @@
     <button onclick="cambiarPagina(1)">Siguiente →</button>
   </div>
 
+  <!-- Modal flotante -->
+<div id="descriptionModal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+  <div class="bg-white p-4 rounded max-w-md w-full mx-4 shadow-lg" onclick="event.stopPropagation()">
+    <p id="descriptionContent" class="text-gray-800 text-sm whitespace-pre-wrap"></p>
+  </div>
+</div>
+
 <script>
 let pagina = 1;
 const porPagina = 25;
@@ -150,6 +157,13 @@ async function cargarDatos() {
           <td>${item.details || "N/A"}</td>
           <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Ver</a></td>
         `;
+        const td = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.textContent = "Ver motivo";
+        btn.className = "text-blue-600 underline hover:text-blue-800 text-sm";
+        btn.onclick = () => showDescriptionModal(item.details || "Sin detalles");
+        td.appendChild(btn);
+        fila.appendChild(td);
         tbody.appendChild(fila);
       });
     } else {
@@ -171,6 +185,18 @@ function cambiarPagina(direccion) {
 // Carga inicial
 cargarDatos();
 
+function showDescriptionModal(texto) {
+  const modal = document.getElementById("descriptionModal");
+  const content = document.getElementById("descriptionContent");
+  content.textContent = texto || "(sin descripción)";
+  modal.classList.remove("hidden");
+}
+
+document.getElementById("descriptionModal").addEventListener("click", () => {
+  document.getElementById("descriptionModal").classList.add("hidden");
+});
+
 </script>
+
 </body>
 </html>
