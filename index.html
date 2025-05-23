@@ -116,7 +116,14 @@
     <span id="paginaActual">Página 1</span>
     <button onclick="cambiarPagina(1)">Siguiente →</button>
   </div>
-
+<!-- Modal -->
+<div id="miModal" class="modal">
+  <div class="modal-content">
+    <span class="cerrar">&times;</span>
+    <h2>Detalles del Log</h2>
+    <p id="contenidoModal"></p>
+  </div>
+</div>
 <script>
 
 let pagina = 1;
@@ -211,12 +218,13 @@ function cambiarPagina(direccion) {
 cargarDatos();
 
 
+// Modal
 const modal = document.getElementById("miModal");
 const contenidoModal = document.getElementById("contenidoModal");
 const spanCerrar = document.querySelector(".cerrar");
 
 function mostrarModal(descripcion) {
-  contenidoModal.innerHTML = descripcion || "Sin descripción disponible.";
+  contenidoModal.textContent = descripcion || "Sin descripción disponible.";
   modal.style.display = "block";
 }
 
@@ -230,13 +238,6 @@ window.onclick = function (event) {
   }
 };
 </script>
-<!-- Modal -->
-<div id="miModal" class="modal">
-  <div class="modal-content">
-    <span class="cerrar">&times;</span>
-    <h2>Detalles del Log</h2>
-    <p id="contenidoModal"></p>
-  </div>
-</div>
+
 </body>
 </html>
