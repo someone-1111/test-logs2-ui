@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.3/dist/purify.min.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Logs Moderación Reddit (Paginado Backend)</title>
@@ -63,6 +65,7 @@
     .cerrar:focus {
       color: black;
     }
+    
 
   </style>
 </head>
@@ -105,6 +108,7 @@
         <th>Moderador</th>
         <th>Fecha</th>
         <th>Detalle</th>
+        <th>Mas</th>
         <th>Enlace</th>
       </tr>
     </thead>
@@ -190,9 +194,8 @@ async function cargarDatos() {
           <td>${item.target_author || "N/A"}</td>
           <td>${item.mod}</td>
           <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
-          <td>
-            ${item.details || "N/A"}
-            <br><button onclick="mostrarModal(\`${item.description ? item.description.replace(/`/g, "\\`") : "Sin descripción"}\`)">Ver más</button>
+          <td>${item.details || "N/A"}</td>
+          <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
           </td>
           <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Ver</a></td>
         `;
@@ -223,9 +226,77 @@ const modal = document.getElementById("miModal");
 const contenidoModal = document.getElementById("contenidoModal");
 const spanCerrar = document.querySelector(".cerrar");
 
-function mostrarModal(descripcion) {
-  contenidoModal.textContent = descripcion || "Sin descripción disponible.";
+function mostrarModal(item) {
+  // 🔸 Claves importantes primero
+  const clavesImportantes = [
+    "action", "mod", "target_author", "created_utc",
+    "details", "description", "target_permalink"
+  ];
+
+  let tablaHTML = "<table style='width:100%; border-collapse: collapse;'>";
+
+  // 🔹 Mostrar primero claves importantes si existen
+  clavesImportantes.forEach(clave => {
+    if (item[clave] !== undefined) {
+      let contenido = formatearValor(clave, item[clave]);
+      tablaHTML += generarFila(clave, contenido);
+    }
+  });
+
+  // 🔹 Luego las demás claves, ordenadas alfabéticamente
+  
+
+  tablaHTML += "</table>";
+
+  // 📝 Renderizar el body como Markdown (si existe)
+  let bodyHTML = "<em>Sin contenido textual disponible.</em>";
+  if (item.target_body) {
+    const htmlCrudo = marked.parse(item.target_body);
+    bodyHTML = DOMPurify.sanitize(htmlCrudo);
+  }
+
+  const seccionBody = `
+    <h3 style="margin-top: 1.5rem;">Contenido:</h3>
+    <div style="
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      padding: 1rem;
+      border-radius: 4px;
+      max-height: 300px;
+      overflow-y: auto;
+    ">
+      ${bodyHTML}
+    </div>
+  `;
+
+  contenidoModal.innerHTML = `
+    <div style="overflow-x: auto; margin-bottom: 1rem;">
+      ${tablaHTML}
+    </div>
+    ${seccionBody}
+  `;
   modal.style.display = "block";
+}
+
+// 🔧 Utilidad: formatea valores según tipo
+function formatearValor(clave, valor) {
+  if (clave === "created_utc") {
+    return new Date(valor * 1000).toLocaleString();
+  }
+  if (typeof valor === "object" && valor !== null) {
+    return JSON.stringify(valor, null, 2);
+  }
+  return valor ?? "N/A";
+}
+
+// 🔧 Utilidad: genera fila HTML para la tabla
+function generarFila(clave, valorFormateado) {
+  return `
+    <tr>
+      <td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${clave}</td>
+      <td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td>
+    </tr>
+  `;
 }
 
 spanCerrar.onclick = function () {
