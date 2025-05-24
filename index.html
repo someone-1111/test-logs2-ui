@@ -13,7 +13,7 @@
       background: #f9f9f9;
     }
     label, input, select, button {
-      margin-right: 1rem;
+      margin-right: 0rem;
       margin-bottom: 1rem;
     }
     table {
@@ -24,9 +24,13 @@
     th, td {
       padding: 8px 12px;
       border: 1px solid #ccc;
+      text-align: center;
     }
     th {
       background: #eee;
+    }
+    #test table td {
+      text-align: left;
     }
     .pagination button {
       margin-right: 0.5rem;
@@ -73,7 +77,7 @@
   <h1>Logs Moderación r/chile (Paginado Backend)</h1>
 
   <div>
-    <label for="autor">Afectado:</label>
+    <label for="autor">Usuario:</label>
     <input type="text" id="autor" placeholder="Buscar por afectado..." />
 
     <label for="moderador">Moderador:</label>
@@ -107,7 +111,6 @@
         <th>Autor</th>
         <th>Moderador</th>
         <th>Fecha</th>
-        <th>Detalle</th>
         <th>Mas</th>
         <th>Enlace</th>
       </tr>
@@ -129,6 +132,17 @@
   </div>
 </div>
 <script>
+const etiquetas = {
+  action: "Acción",
+  mod: "Moderador",
+  target_author: "Usuario",
+  created_utc: "Fecha",
+  details: "Detalle",
+  description: "Descripción",
+  target_permalink: "Enlace",
+  body: "Contenido"
+  // Agrega más si lo necesitas
+};
 
 let pagina = 1;
 const porPagina = 25;
@@ -194,7 +208,6 @@ async function cargarDatos() {
           <td>${item.target_author || "N/A"}</td>
           <td>${item.mod}</td>
           <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
-          <td>${item.details || "N/A"}</td>
           <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
           </td>
           <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Ver</a></td>
@@ -252,7 +265,7 @@ function mostrarModal(item) {
   let bodyHTML = "<em>Sin contenido textual disponible.</em>";
   if (item.target_body) {
     const htmlCrudo = marked.parse(item.target_body);
-    bodyHTML = DOMPurify.sanitize(htmlCrudo);
+    bodyHTML = DOMPurify.sanitize(item.target_body);
   }
 
   const seccionBody = `
@@ -270,7 +283,7 @@ function mostrarModal(item) {
   `;
 
   contenidoModal.innerHTML = `
-    <div style="overflow-x: auto; margin-bottom: 1rem;">
+    <div id=test style="overflow-x: auto; margin-bottom: 1rem;">
       ${tablaHTML}
     </div>
     ${seccionBody}
@@ -283,6 +296,10 @@ function formatearValor(clave, valor) {
   if (clave === "created_utc") {
     return new Date(valor * 1000).toLocaleString();
   }
+  if (clave === "target_permalink" && typeof valor === "string") {
+    const url = "https://reddit.com" + valor;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+  }
   if (typeof valor === "object" && valor !== null) {
     return JSON.stringify(valor, null, 2);
   }
@@ -291,9 +308,10 @@ function formatearValor(clave, valor) {
 
 // 🔧 Utilidad: genera fila HTML para la tabla
 function generarFila(clave, valorFormateado) {
+  const etiqueta = etiquetas[clave] || clave;
   return `
     <tr>
-      <td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${clave}</td>
+      <td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${etiqueta}</td>
       <td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td>
     </tr>
   `;
@@ -308,6 +326,11 @@ window.onclick = function (event) {
     modal.style.display = "none";
   }
 };
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape" && modal.style.display === "block") {
+    modal.style.display = "none";
+  }
+});
 </script>
 
 </body>
