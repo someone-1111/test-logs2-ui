@@ -75,7 +75,6 @@
 </head>
 <body>
   <h1>Logs Moderación r/chile (Paginado Backend)</h1>
-
   <div>
     <label for="autor">Usuario:</label>
     <input type="text" id="autor" placeholder="Buscar por afectado..." />
@@ -99,7 +98,7 @@
   </div>
 
   <button onclick="cargarDatos()">Buscar</button>
-
+<button onclick="resetearFiltros()">Resetear</button>
   <div>
     <small>Total resultados: <span id="totalResultados">0</span></small>
   </div>
@@ -140,7 +139,8 @@ const etiquetas = {
   details: "Detalle",
   description: "Descripción",
   target_permalink: "Enlace",
-  body: "Contenido"
+  body: "Contenido",
+  target_title: "Titulo"
   // Agrega más si lo necesitas
 };
 
@@ -203,17 +203,33 @@ async function cargarDatos() {
 
       data.results.forEach(item => {
         const fila = document.createElement("tr");
-        fila.innerHTML = `
-          <td>${item.action}</td>
-          <td>${item.target_author || "N/A"}</td>
-          <td>${item.mod}</td>
-          <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
-          <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
-          </td>
-          <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Ver</a></td>
-        `;
-        tbody.appendChild(fila);
-      });
+        console.log(item.target_permalink)
+        if (item.target_permalink === null){
+          fila.innerHTML = `
+            <td>${item.action}</td>
+            <td>${item.target_author || ""}</td>
+            <td>${item.mod}</td>
+            <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
+            <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
+            </td>
+            <td></td>
+          `;
+          tbody.appendChild(fila);
+        }
+        else{
+          fila.innerHTML = `
+            <td>${item.action}</td>
+            <td>${item.target_author || ""}</td>
+            <td>${item.mod}</td>
+            <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
+            <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
+            </td>
+            <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Link</a></td>
+          `;
+          tbody.appendChild(fila);
+        }
+      }
+    );
     } else {
       alert("Error al cargar datos: " + (data.error || resp.statusText));
     }
@@ -243,7 +259,7 @@ function mostrarModal(item) {
   // 🔸 Claves importantes primero
   const clavesImportantes = [
     "action", "mod", "target_author", "created_utc",
-    "details", "description", "target_permalink","target_title"
+    "details", "description","target_title", "target_permalink"
   ];
 
   let tablaHTML = "<table style='width:100%; border-collapse: collapse;'>";
@@ -331,6 +347,18 @@ document.addEventListener("keydown", function (event) {
     modal.style.display = "none";
   }
 });
+function resetearFiltros() {
+  // Limpiar inputs y select
+  document.getElementById("autor").value = "";
+  document.getElementById("moderador").value = "";
+  document.getElementById("accion").value = "";
+
+  // Reiniciar a página 1
+  pagina = 1;
+
+  // Volver a cargar datos sin filtros
+  cargarDatos();
+}
 </script>
 
 </body>
