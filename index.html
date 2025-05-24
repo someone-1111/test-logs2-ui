@@ -243,16 +243,16 @@ function mostrarModal(item) {
   // 🔸 Claves importantes primero
   const clavesImportantes = [
     "action", "mod", "target_author", "created_utc",
-    "details", "description", "target_permalink"
+    "details", "description", "target_permalink","target_title"
   ];
 
   let tablaHTML = "<table style='width:100%; border-collapse: collapse;'>";
 
   // 🔹 Mostrar primero claves importantes si existen
   clavesImportantes.forEach(clave => {
-    if (item[clave] !== undefined) {
-      let contenido = formatearValor(clave, item[clave]);
-      tablaHTML += generarFila(clave, contenido);
+    const valor = item[clave];
+    if (valor !== null && valor !== undefined && !(typeof valor === "string" && valor.trim() === "")) {
+      tablaHTML += generarFila(clave, formatearValor(clave, valor));
     }
   });
 
