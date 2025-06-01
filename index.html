@@ -92,15 +92,6 @@
     <label for="accion">Acción:</label>
     <select id="accion">
       <option value="">Todas</option>
-      <option value="removelink">removelink</option>
-      <option value="removecomment">removecomment</option>
-      <option value="approvelink">approvelink</option>
-      <option value="approvecomment">approvecomment</option>
-      <option value="banuser">banuser</option>
-      <option value="unbanuser">unbanuser</option>
-      <option value="distinguish">distinguish</option>
-      <option value="sticky">sticky</option>
-      <option value="addremovalreason">addremovalreason</option>
     </select>
     
   </div>
@@ -189,6 +180,26 @@ function debounceCargarDatos() {
   }, 500);
 }
 
+async function poblarSelectAcciones() {
+  const select = document.getElementById("accion");
+  try {
+    const resp = await fetch("https://test-logs2.onrender.com/api/actions");
+    const data = await resp.json();
+    if (resp.ok && Array.isArray(data.actions)) {
+      // Elimina opciones previas excepto "Todas"
+      select.innerHTML = '<option value="">Todas</option>';
+      data.actions.forEach(accion => {
+        const opt = document.createElement("option");
+        opt.value = accion;
+        opt.textContent = accion;
+        select.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    console.error("Error cargando acciones:", e);
+  }
+}
+
 async function cargarDatos() {
   const autor = autorInput.value.trim();
   const moderador = moderadorInput.value.trim();
@@ -262,7 +273,10 @@ function cambiarPagina(direccion) {
   cargarDatos();
 }
 
+
+
 // Carga inicial
+poblarSelectAcciones();
 cargarDatos();
 
 
