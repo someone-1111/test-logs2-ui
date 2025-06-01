@@ -69,7 +69,14 @@
     .cerrar:focus {
       color: black;
     }
-    
+    a.sin-estilo {
+      color: inherit;
+      text-decoration: none;
+    }
+    a.sin-estilo:hover {
+      text-decoration: underline;
+      color: #999;
+    }
 
   </style>
 </head>
@@ -95,10 +102,15 @@
       <option value="sticky">sticky</option>
       <option value="addremovalreason">addremovalreason</option>
     </select>
+    
   </div>
 
   <button onclick="cargarDatos()">Buscar</button>
-<button onclick="resetearFiltros()">Resetear</button>
+  <button onclick="resetearFiltros()">Resetear</button>
+  <label>
+    <input type="checkbox" id="filtrarBots" />
+    <span id="textoBots">Mostrar acciones de bots</span>
+  </label>
   <div>
     <small>Total resultados: <span id="totalResultados">0</span></small>
   </div>
@@ -200,8 +212,12 @@ async function cargarDatos() {
 
       const tbody = document.querySelector("#tablaLogs tbody");
       tbody.innerHTML = "";
-
+      
+      const mostrarBots = document.getElementById("filtrarBots").checked;
       data.results.forEach(item => {
+        if (!mostrarBots && esBot(item.mod)) {
+          return; // Saltar si es un bot y el checkbox está desmarcado
+        }
         const fila = document.createElement("tr");
         console.log(item.target_permalink)
         if (item.target_permalink === null){
@@ -312,6 +328,11 @@ function formatearValor(clave, valor) {
   if (clave === "created_utc") {
     return new Date(valor * 1000).toLocaleString();
   }
+  if (clave === "target_author"){
+    const url = "https://reddit.com/user/" + valor;
+    return `<a class="sin-estilo" href="${url}" target="_blank" rel="noopener noreferrer">${valor}</a>`;
+  }
+
   if (clave === "target_permalink" && typeof valor === "string") {
     const url = "https://reddit.com" + valor;
     return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
@@ -358,6 +379,33 @@ function resetearFiltros() {
 
   // Volver a cargar datos sin filtros
   cargarDatos();
+}
+function esBot(nombre) {
+  const bots = ["AutoModerator", "empleadoEstatalBot"];
+  return bots.includes(nombre);
+}
+
+const checkboxBots = document.getElementById("filtrarBots");
+const textoBots = document.getElementById("textoBots");
+
+// Cargar preferencia desde localStorage
+if (localStorage.getItem("mostrarBots") !== null) {
+  checkboxBots.checked = localStorage.getItem("mostrarBots") === "true";
+  actualizarTextoBots();
+}
+
+// Escuchar cambios y actualizar
+checkboxBots.addEventListener("change", () => {
+  localStorage.setItem("mostrarBots", checkboxBots.checked);
+  actualizarTextoBots();
+  pagina = 1;
+  cargarDatos();
+});
+
+function actualizarTextoBots() {
+  textoBots.textContent = checkboxBots.checked
+    ? "Ocultar acciones de bots"
+    : "Mostrar acciones de bots";
 }
 </script>
 
