@@ -248,7 +248,7 @@ async function cargarDatos() {
             <td>${item.action}</td>
             <td>${item.target_author || ""}</td>
             <td>${item.mod}</td>
-            <td>${new Date(item.created_utc * 1000).toLocaleString()}</td>
+            <td>${new Date(item.created_utc * 1000).toLocaleString("en-GB")}</td>
             <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
             </td>
             <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Link</a></td>
