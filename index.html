@@ -5,83 +5,32 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.3/dist/purify.min.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Logs Moderación Reddit (Paginado Backend)</title>
+  <title>Logs Moderación Reddit (Carga Infinita)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 1.5rem;
-      background: #f9f9f9;
-    }
-    label, input, select, button {
-      margin-right: 0rem;
-      margin-bottom: 1rem;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 1rem;
-    }
-    th, td {
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      text-align: center;
-    }
-    th {
-      background: #eee;
-    }
-    #test table td {
-      text-align: left;
-    }
-    .pagination button {
-      margin-right: 0.5rem;
-    }
-    .modal {
+    body { font-family: Arial, sans-serif; padding: 1.5rem; background: #f9f9f9; }
+    label, input, select, button { margin-right: 0rem; margin-bottom: 1rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: center; }
+    th { background: #eee; }
+    #test table td { text-align: left; }
+    .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+    .modal-content { background-color: #fff; margin: 10% auto; padding: 1.5rem; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
+    .cerrar { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .cerrar:hover, .cerrar:focus { color: black; }
+    a.sin-estilo { color: inherit; text-decoration: none; }
+    a.sin-estilo:hover { text-decoration: underline; color: #999; }
+    /* Loader */
+    #loader {
       display: none;
-      position: fixed;
-      z-index: 999;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      background-color: rgba(0,0,0,0.4);
+      text-align: center;
+      padding: 1rem;
+      color: #555;
+      font-size: 0.9rem;
     }
-
-    .modal-content {
-      background-color: #fff;
-      margin: 10% auto;
-      padding: 1.5rem;
-      border: 1px solid #888;
-      width: 80%;
-      max-width: 600px;
-      border-radius: 8px;
-    }
-
-    .cerrar {
-      color: #aaa;
-      float: right;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    .cerrar:hover,
-    .cerrar:focus {
-      color: black;
-    }
-    a.sin-estilo {
-      color: inherit;
-      text-decoration: none;
-    }
-    a.sin-estilo:hover {
-      text-decoration: underline;
-      color: #999;
-    }
-
   </style>
 </head>
 <body>
-  <h1>Logs Moderación r/chile (Paginado Backend)</h1>
+  <h1>Logs Moderación r/chile (Carga Infinita)</h1>
   <div>
     <label for="autor">Usuario:</label>
     <input type="text" id="autor" placeholder="Buscar por afectado..." />
@@ -93,10 +42,8 @@
     <select id="accion">
       <option value="">Todas</option>
     </select>
-    
   </div>
 
-  <button onclick="cargarDatos()">Buscar</button>
   <button onclick="resetearFiltros()">Resetear</button>
   <label>
     <input type="checkbox" id="filtrarBots" />
@@ -120,19 +67,21 @@
     <tbody></tbody>
   </table>
 
-  <div class="pagination">
-    <button onclick="cambiarPagina(-1)">← Anterior</button>
-    <span id="paginaActual">Página 1</span>
-    <button onclick="cambiarPagina(1)">Siguiente →</button>
+  <!-- Loader -->
+  <div id="loader">Cargando más resultados...</div>
+
+  <!-- Sentinela para carga infinita -->
+  <div id="sentinela" style="height: 1px;"></div>
+
+  <!-- Modal -->
+  <div id="miModal" class="modal">
+    <div class="modal-content">
+      <span class="cerrar">&times;</span>
+      <h2>Detalles del Log</h2>
+      <p id="contenidoModal"></p>
+    </div>
   </div>
-<!-- Modal -->
-<div id="miModal" class="modal">
-  <div class="modal-content">
-    <span class="cerrar">&times;</span>
-    <h2>Detalles del Log</h2>
-    <p id="contenidoModal"></p>
-  </div>
-</div>
+
 <script>
 const etiquetas = {
   action: "Acción",
@@ -144,40 +93,32 @@ const etiquetas = {
   target_permalink: "Enlace",
   body: "Contenido",
   target_title: "Titulo"
-  // Agrega más si lo necesitas
 };
 
 let pagina = 1;
 const porPagina = 25;
 let totalResultados = 0;
+let cargando = false;
 let debounceTimer;
 
+const loader = document.getElementById("loader");
 const autorInput = document.getElementById("autor");
 const moderadorInput = document.getElementById("moderador");
 const accionSelect = document.getElementById("accion");
 
-// Al cambiar autor o acción, reinicia página a 1 y recarga
-autorInput.addEventListener("input", () => {
-  pagina = 1;
-  debounceCargarDatos();
+// Detectar cambios de filtros y reiniciar carga
+[autorInput, moderadorInput].forEach(input => {
+  input.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => reiniciarCarga(), 500);
+  });
 });
+accionSelect.addEventListener("change", reiniciarCarga);
 
-moderadorInput.addEventListener("input", () => {
+function reiniciarCarga() {
   pagina = 1;
-  debounceCargarDatos();
-});
-
-accionSelect.addEventListener("change", () => {
-  pagina = 1;
-  cargarDatos();
-});
-
-// Función debounce para esperar 500 ms tras última pulsación
-function debounceCargarDatos() {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    cargarDatos();
-  }, 500);
+  document.querySelector("#tablaLogs tbody").innerHTML = "";
+  cargarDatos(false);
 }
 
 async function poblarSelectAcciones() {
@@ -186,7 +127,6 @@ async function poblarSelectAcciones() {
     const resp = await fetch("https://test-logs2.onrender.com/api/actions");
     const data = await resp.json();
     if (resp.ok && Array.isArray(data.actions)) {
-      // Elimina opciones previas excepto "Todas"
       select.innerHTML = '<option value="">Todas</option>';
       data.actions.forEach(accion => {
         const opt = document.createElement("option");
@@ -195,12 +135,14 @@ async function poblarSelectAcciones() {
         select.appendChild(opt);
       });
     }
-  } catch (e) {
-    console.error("Error cargando acciones:", e);
-  }
+  } catch (e) { console.error("Error cargando acciones:", e); }
 }
 
-async function cargarDatos() {
+async function cargarDatos(append = false) {
+  if (cargando) return;
+  cargando = true;
+  loader.style.display = "block";
+
   const autor = autorInput.value.trim();
   const moderador = moderadorInput.value.trim();
   const accion = accionSelect.value;
@@ -219,66 +161,49 @@ async function cargarDatos() {
     if (resp.ok) {
       totalResultados = data.total;
       document.getElementById("totalResultados").textContent = totalResultados;
-      document.getElementById("paginaActual").textContent = `Página ${data.page}`;
 
       const tbody = document.querySelector("#tablaLogs tbody");
-      tbody.innerHTML = "";
-      
+      if (!append) tbody.innerHTML = "";
+
       const mostrarBots = document.getElementById("filtrarBots").checked;
       data.results.forEach(item => {
-        if (!mostrarBots && esBot(item.mod)) {
-          return; // Saltar si es un bot y el checkbox está desmarcado
-        }
+        if (!mostrarBots && esBot(item.mod)) return;
         const fila = document.createElement("tr");
-        console.log(item.target_permalink)
-        if (item.target_permalink === null){
-          fila.innerHTML = `
-            <td>${item.action}</td>
-            <td>${item.target_author || ""}</td>
-            <td>${item.mod}</td>
-            <td>${new Date(item.created_utc * 1000).toLocaleString("en-GB")}</td>
-            <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
-            </td>
-            <td></td>
-          `;
-          tbody.appendChild(fila);
-        }
-        else{
-          fila.innerHTML = `
-            <td>${item.action}</td>
-            <td>${item.target_author || ""}</td>
-            <td>${item.mod}</td>
-            <td>${new Date(item.created_utc * 1000).toLocaleString("en-GB")}</td>
-            <td><br><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button>
-            </td>
-            <td><a href="https://reddit.com${item.target_permalink}" target="_blank" rel="noopener noreferrer">Link</a></td>
-          `;
-          tbody.appendChild(fila);
-        }
-      }
-    );
+        const fecha = new Date(item.created_utc * 1000).toLocaleString("en-GB");
+        fila.innerHTML = `
+          <td>${item.action}</td>
+          <td>${item.target_author || ""}</td>
+          <td>${item.mod}</td>
+          <td>${fecha}</td>
+          <td><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button></td>
+          <td>${item.target_permalink ? `<a href="https://reddit.com${item.target_permalink}" target="_blank">Link</a>` : ""}</td>
+        `;
+        tbody.appendChild(fila);
+      });
+
+      pagina++;
     } else {
       alert("Error al cargar datos: " + (data.error || resp.statusText));
     }
   } catch (e) {
     alert("Error al conectar con la API: " + e.message);
+  } finally {
+    cargando = false;
+    loader.style.display = "none";
   }
 }
 
-function cambiarPagina(direccion) {
-  const totalPaginas = Math.ceil(totalResultados / porPagina);
-  const nuevaPagina = pagina + direccion;
-  if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
-  pagina = nuevaPagina;
-  cargarDatos();
-}
-
-
-
-// Carga inicial
-poblarSelectAcciones();
-cargarDatos();
-
+// Intersection Observer para carga infinita
+const sentinela = document.getElementById("sentinela");
+const observer = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting) {
+    const totalPaginas = Math.ceil(totalResultados / porPagina);
+    if (pagina <= totalPaginas) {
+      cargarDatos(true);
+    }
+  }
+}, { rootMargin: "200px" });
+observer.observe(sentinela);
 
 // Modal
 const modal = document.getElementById("miModal");
@@ -286,114 +211,54 @@ const contenidoModal = document.getElementById("contenidoModal");
 const spanCerrar = document.querySelector(".cerrar");
 
 function mostrarModal(item) {
-  // 🔸 Claves importantes primero
-  const clavesImportantes = [
-    "action", "mod", "target_author", "created_utc",
-    "details", "description","target_title", "target_permalink"
-  ];
-
+  const clavesImportantes = ["action", "mod", "target_author", "created_utc", "details", "description","target_title", "target_permalink"];
   let tablaHTML = "<table style='width:100%; border-collapse: collapse;'>";
-
-  // 🔹 Mostrar primero claves importantes si existen
   clavesImportantes.forEach(clave => {
     const valor = item[clave];
     if (valor !== null && valor !== undefined && !(typeof valor === "string" && valor.trim() === "")) {
       tablaHTML += generarFila(clave, formatearValor(clave, valor));
     }
   });
-
-  // 🔹 Luego las demás claves, ordenadas alfabéticamente
-  
-
   tablaHTML += "</table>";
 
-  // 📝 Renderizar el body como Markdown (si existe)
   let bodyHTML = "<em>Sin contenido textual disponible.</em>";
   if (item.target_body) {
-    const htmlCrudo = marked.parse(item.target_body);
     bodyHTML = DOMPurify.sanitize(item.target_body);
   }
-
   const seccionBody = `
     <h3 style="margin-top: 1.5rem;">Contenido:</h3>
-    <div style="
-      background: #f9f9f9;
-      border: 1px solid #ccc;
-      padding: 1rem;
-      border-radius: 4px;
-      max-height: 300px;
-      overflow-y: auto;
-    ">
+    <div style="background: #f9f9f9; border: 1px solid #ccc; padding: 1rem; border-radius: 4px; max-height: 300px; overflow-y: auto;">
       ${bodyHTML}
     </div>
   `;
-
-  contenidoModal.innerHTML = `
-    <div id=test style="overflow-x: auto; margin-bottom: 1rem;">
-      ${tablaHTML}
-    </div>
-    ${seccionBody}
-  `;
+  contenidoModal.innerHTML = `<div id=test style="overflow-x: auto; margin-bottom: 1rem;">${tablaHTML}</div>${seccionBody}`;
   modal.style.display = "block";
 }
 
-// 🔧 Utilidad: formatea valores según tipo
 function formatearValor(clave, valor) {
-  if (clave === "created_utc") {
-    return new Date(valor * 1000).toLocaleString();
-  }
-  if (clave === "target_author"){
-    const url = "https://reddit.com/user/" + valor;
-    return `<a class="sin-estilo" href="${url}" target="_blank" rel="noopener noreferrer">${valor}</a>`;
-  }
-
-  if (clave === "target_permalink" && typeof valor === "string") {
-    const url = "https://reddit.com" + valor;
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-  }
-  if (typeof valor === "object" && valor !== null) {
-    return JSON.stringify(valor, null, 2);
-  }
+  if (clave === "created_utc") return new Date(valor * 1000).toLocaleString();
+  if (clave === "target_author") return `<a class="sin-estilo" href="https://reddit.com/user/${valor}" target="_blank">${valor}</a>`;
+  if (clave === "target_permalink" && typeof valor === "string") return `<a href="https://reddit.com${valor}" target="_blank">${"https://reddit.com" + valor}</a>`;
+  if (typeof valor === "object" && valor !== null) return JSON.stringify(valor, null, 2);
   return valor ?? "N/A";
 }
 
-// 🔧 Utilidad: genera fila HTML para la tabla
 function generarFila(clave, valorFormateado) {
   const etiqueta = etiquetas[clave] || clave;
-  return `
-    <tr>
-      <td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${etiqueta}</td>
-      <td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td>
-    </tr>
-  `;
+  return `<tr><td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${etiqueta}</td><td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td></tr>`;
 }
 
-spanCerrar.onclick = function () {
-  modal.style.display = "none";
-};
+spanCerrar.onclick = () => { modal.style.display = "none"; };
+window.onclick = e => { if (e.target == modal) modal.style.display = "none"; };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && modal.style.display === "block") modal.style.display = "none"; });
 
-window.onclick = function (event) {
-  if (event.target == modal) {
-    modal.style.display = "none";
-  }
-};
-document.addEventListener("keydown", function (event) {
-  if (event.key === "Escape" && modal.style.display === "block") {
-    modal.style.display = "none";
-  }
-});
 function resetearFiltros() {
-  // Limpiar inputs y select
   document.getElementById("autor").value = "";
   document.getElementById("moderador").value = "";
   document.getElementById("accion").selectedIndex = 0;
-
-  // Reiniciar a página 1
-  pagina = 1;
-
-  // Volver a cargar datos sin filtros
-  cargarDatos();
+  reiniciarCarga();
 }
+
 function esBot(nombre) {
   const bots = ["AutoModerator", "empleadoEstatalBot"];
   return bots.includes(nombre);
@@ -401,27 +266,22 @@ function esBot(nombre) {
 
 const checkboxBots = document.getElementById("filtrarBots");
 const textoBots = document.getElementById("textoBots");
-
-// Cargar preferencia desde localStorage
 if (localStorage.getItem("mostrarBots") !== null) {
   checkboxBots.checked = localStorage.getItem("mostrarBots") === "true";
   actualizarTextoBots();
 }
-
-// Escuchar cambios y actualizar
 checkboxBots.addEventListener("change", () => {
   localStorage.setItem("mostrarBots", checkboxBots.checked);
   actualizarTextoBots();
-  pagina = 1;
-  cargarDatos();
+  reiniciarCarga();
 });
-
 function actualizarTextoBots() {
-  textoBots.textContent = checkboxBots.checked
-    ? "Ocultar acciones de bots"
-    : "Mostrar acciones de bots";
+  textoBots.textContent = checkboxBots.checked ? "Ocultar acciones de bots" : "Mostrar acciones de bots";
 }
-</script>
 
+// Inicial
+poblarSelectAcciones();
+cargarDatos(false);
+</script>
 </body>
 </html>
