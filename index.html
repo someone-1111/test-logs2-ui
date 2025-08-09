@@ -10,7 +10,7 @@
     body { font-family: Arial, sans-serif; padding: 1.5rem; background: #f9f9f9; }
     label, input, select, button { margin-right: 0rem; margin-bottom: 1rem; }
     table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: center; }
+    th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: center;vertical-align: middle;}
     th { background: #eee; }
     #test table td { text-align: left; }
     .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
@@ -70,6 +70,11 @@
   <!-- Loader -->
   <div id="loader">Cargando más resultados...</div>
 
+  <!-- Mensaje de fin de resultados -->
+  <div id="endMessage" style="display:none; text-align:center; padding:1rem; color:#777; font-size:0.9rem;">
+    No hay más resultados
+  </div>
+  
   <!-- Sentinela para carga infinita -->
   <div id="sentinela" style="height: 1px;"></div>
 
@@ -142,6 +147,7 @@ async function cargarDatos(append = false) {
   if (cargando) return;
   cargando = true;
   loader.style.display = "block";
+  endMessage.style.display = "none"; // ocultar mensaje de fin en nueva carga
 
   const autor = autorInput.value.trim();
   const moderador = moderadorInput.value.trim();
@@ -181,7 +187,13 @@ async function cargarDatos(append = false) {
         tbody.appendChild(fila);
       });
 
-      pagina++;
+      const totalPaginas = Math.ceil(totalResultados / porPagina);
+      if (pagina >= totalPaginas) {
+        endMessage.style.display = "block"; // mostrar mensaje fin
+      } else {
+        pagina++;
+      }
+
     } else {
       alert("Error al cargar datos: " + (data.error || resp.statusText));
     }
@@ -189,17 +201,18 @@ async function cargarDatos(append = false) {
     alert("Error al conectar con la API: " + e.message);
   } finally {
     cargando = false;
-    loader.style.display = "none";
+    loader.style.display = "block";
   }
 }
 
-// Intersection Observer para carga infinita
-const sentinela = document.getElementById("sentinela");
+// Intersection Observer
 const observer = new IntersectionObserver(entries => {
-  if (entries[0].isIntersecting) {
+  if (entries[0].isIntersecting && !cargando) {
     const totalPaginas = Math.ceil(totalResultados / porPagina);
-    if (pagina <= totalPaginas) {
+    console.log("total paginas: ",totalResultados);
+    if (totalResultados > 25) {
       cargarDatos(true);
+      loader.style.display = "block";
     }
   }
 }, { rootMargin: "200px" });
