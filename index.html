@@ -10,7 +10,7 @@
     body { font-family: Arial, sans-serif; padding: 1.5rem; background: #f9f9f9; }
     label, input, select, button { margin-right: 0rem; margin-bottom: 1rem; }
     table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: center;vertical-align: middle;}
+    th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: center; }
     th { background: #eee; }
     #test table td { text-align: left; }
     .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
@@ -75,8 +75,7 @@
     No hay más resultados
   </div>
   
-  <!-- Sentinela para carga infinita -->
-  <div id="sentinela" style="height: 1px;"></div>
+  
 
   <!-- Modal -->
   <div id="miModal" class="modal">
@@ -86,6 +85,9 @@
       <p id="contenidoModal"></p>
     </div>
   </div>
+
+  <!-- Sentinela para carga infinita -->
+  <div id="sentinela" style="height: 1px;"></div>
 
 <script>
 const etiquetas = {
@@ -186,12 +188,17 @@ async function cargarDatos(append = false) {
         `;
         tbody.appendChild(fila);
       });
+      if (totalResultados < 25){
+        loader.style.display = "none";
+        endMessage.style.display = "block";
+      }
 
       const totalPaginas = Math.ceil(totalResultados / porPagina);
+      console.log("totalPaginas: ",totalPaginas);
       if (pagina >= totalPaginas) {
-        endMessage.style.display = "block"; // mostrar mensaje fin
+        //endMessage.style.display = "block"; // mostrar mensaje fin
       } else {
-        pagina++;
+        //pagina++;
       }
 
     } else {
@@ -201,21 +208,34 @@ async function cargarDatos(append = false) {
     alert("Error al conectar con la API: " + e.message);
   } finally {
     cargando = false;
-    loader.style.display = "block";
+    //loader.style.display = "block";
   }
 }
 
 // Intersection Observer
 const observer = new IntersectionObserver(entries => {
   if (entries[0].isIntersecting && !cargando) {
+    loader.style.display = "block";
+    endMessage.style.display = "none"; // mostrar mensaje fin
+
     const totalPaginas = Math.ceil(totalResultados / porPagina);
-    console.log("total paginas: ",totalResultados);
-    if (totalResultados > 25) {
+    console.log("total Resultados1: ",totalResultados);
+    console.log("porpagina1: ",porPagina);
+    console.log("pagina1: ",pagina);
+    const check = totalResultados - ((pagina) * 25);
+    console.log("check1: ",check);
+    if (check > 0) {
+      pagina++
       cargarDatos(true);
       loader.style.display = "block";
+    }else{
+      loader.style.display = "none";
+      endMessage.style.display = "block"; // mostrar mensaje fin
+      
+      console.log("FIN");
     }
   }
-}, { rootMargin: "200px" });
+}, { rootMargin: "100px" });
 observer.observe(sentinela);
 
 // Modal
