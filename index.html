@@ -27,6 +27,63 @@
       color: #555;
       font-size: 0.9rem;
     }
+    /* 📱 Ajustes para pantallas pequeñas */
+    @media (max-width: 768px) {
+      body {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      h1 {
+        font-size: 1.2rem;
+        text-align: center;
+        margin-bottom: 1rem;
+      }
+
+      /* Campos de filtros en columna */
+      div > label,
+      div > input,
+      div > select,
+      button {
+        display: block;
+        width: 100%;
+        margin: 0.3rem 0;
+      }
+
+      table {
+        font-size: 0.8rem;
+        display: block;
+        overflow-x: auto; /* permite scroll horizontal si no cabe */
+        white-space: nowrap;
+      }
+
+      th, td {
+        padding: 6px;
+      }
+
+      /* Botones más fáciles de pulsar */
+      button {
+        padding: 0.6rem;
+        font-size: 0.6rem;
+      }
+
+      /* Modal más ajustado en móvil */
+      .modal-content {
+        width: 95%;
+        margin: 5% auto;
+        padding: 1rem;
+      }
+    }
+
+    /* 📱 Ajuste extra para móviles muy pequeños (menos de 480px) */
+    @media (max-width: 480px) {
+      table {
+        font-size: 0.75rem;
+      }
+      th, td {
+        padding: 4px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -106,6 +163,7 @@ let pagina = 1;
 const porPagina = 25;
 let totalResultados = 0;
 let cargando = false;
+let contador=0;
 let debounceTimer;
 
 const loader = document.getElementById("loader");
@@ -124,6 +182,7 @@ accionSelect.addEventListener("change", reiniciarCarga);
 
 function reiniciarCarga() {
   pagina = 1;
+  contador = 0;
   document.querySelector("#tablaLogs tbody").innerHTML = "";
   cargarDatos(false);
 }
@@ -168,13 +227,13 @@ async function cargarDatos(append = false) {
 
     if (resp.ok) {
       totalResultados = data.total;
-      document.getElementById("totalResultados").textContent = totalResultados;
 
       const tbody = document.querySelector("#tablaLogs tbody");
       if (!append) tbody.innerHTML = "";
 
       const mostrarBots = document.getElementById("filtrarBots").checked;
       data.results.forEach(item => {
+        contador++;
         if (!mostrarBots && esBot(item.mod)) return;
         const fila = document.createElement("tr");
         const fecha = new Date(item.created_utc * 1000).toLocaleString("en-GB");
@@ -188,6 +247,7 @@ async function cargarDatos(append = false) {
         `;
         tbody.appendChild(fila);
       });
+      document.getElementById("totalResultados").textContent = contador +"/"+totalResultados;
       if (totalResultados < 25){
         loader.style.display = "none";
         endMessage.style.display = "block";
