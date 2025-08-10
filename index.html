@@ -8,25 +8,17 @@
   <title>Logs Moderación Reddit (Carga Infinita)</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 1.5rem; background: #f9f9f9; }
-    label, input, select, button { margin-right: 0rem; margin-bottom: 1rem; }
+    label, input, select, button { margin-bottom: 1rem; }
     table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
     th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: center; }
     th { background: #eee; }
     #test table td { text-align: left; }
     .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-    .modal-content { background-color: #fff; margin: 10% auto; padding: 1.5rem; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
-    .cerrar { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-    .cerrar:hover, .cerrar:focus { color: black; }
+    .modal-content { background-color: #fff; margin: 5% auto; padding: 1.5rem; border: 1px solid #888; width: 80%; border-radius: 8px; }
+    .cerrar { float: right; font-size: 28px; font-weight: bold; cursor: pointer; color: #aaa; }
+    .cerrar:hover { color: black; }
     a.sin-estilo { color: inherit; text-decoration: none; }
-    a.sin-estilo:hover { text-decoration: underline; color: #999; }
-    /* Loader */
-    #loader {
-      display: none;
-      text-align: center;
-      padding: 1rem;
-      color: #555;
-      font-size: 0.9rem;
-    }
+    #loader { display: none; text-align: center; padding: 1rem; color: #555; }
     /* 📱 Ajustes para pantallas pequeñas */
     @media (max-width: 768px) {
       body {
@@ -71,7 +63,7 @@
       .modal-content {
         width: 95%;
         margin: 5% auto;
-        padding: 1rem;
+        padding: 0.5rem;
       }
     }
 
@@ -87,28 +79,19 @@
   </style>
 </head>
 <body>
-  <h1>Logs Moderación r/chile (Carga Infinita)</h1>
+  <h1>Logs Moderación r/chile</h1>
   <div>
     <label for="autor">Usuario:</label>
-    <input type="text" id="autor" placeholder="Buscar por afectado..." />
-
+    <input type="text" id="autor" placeholder="Buscar por usuario" />
     <label for="moderador">Moderador:</label>
     <input type="text" id="moderador" placeholder="Buscar por moderador">
-
     <label for="accion">Acción:</label>
-    <select id="accion">
-      <option value="">Todas</option>
-    </select>
+    <select id="accion"><option value="">Todas</option></select>
   </div>
-
-  <button onclick="resetearFiltros()">Resetear</button>
-  <label>
-    <input type="checkbox" id="filtrarBots" />
-    <span id="textoBots">Mostrar acciones de bots</span>
-  </label>
-  <div>
-    <small>Total resultados: <span id="totalResultados">0</span></small>
-  </div>
+  
+  <button id="btnReset">Resetear</button>
+  
+  <div><small>Total resultados: <span id="totalResultados">0</span></small></div>
 
   <table id="tablaLogs">
     <thead>
@@ -124,17 +107,11 @@
     <tbody></tbody>
   </table>
 
-  <!-- Loader -->
   <div id="loader">Cargando más resultados...</div>
-
-  <!-- Mensaje de fin de resultados -->
-  <div id="endMessage" style="display:none; text-align:center; padding:1rem; color:#777; font-size:0.9rem;">
+  <div id="endMessage" style="display:none; text-align:center; padding:1rem; color:#777;">
     No hay más resultados
   </div>
-  
-  
 
-  <!-- Modal -->
   <div id="miModal" class="modal">
     <div class="modal-content">
       <span class="cerrar">&times;</span>
@@ -143,8 +120,12 @@
     </div>
   </div>
 
-  <!-- Sentinela para carga infinita -->
   <div id="sentinela" style="height: 1px;"></div>
+  <button id="botonForzar">Forzar carga</button>
+  <div style="display: flex; justify-content: space-between; width: 100%;">
+    <button>Botón Izquierdo</button>
+    <button>Botón Derecho</button>
+  </div>
 
 <script>
 const etiquetas = {
@@ -159,149 +140,61 @@ const etiquetas = {
   target_title: "Titulo"
 };
 
-let pagina = 1;
-const porPagina = 25;
-let totalResultados = 0;
-let cargando = false;
-let contador=0;
-let debounceTimer;
+let pagina = 1, porPagina = 25, isLoading = false, hasMore = true, contador = 0;
+let debounceTimer, lastRequestTime = 0;
 
 const loader = document.getElementById("loader");
 const autorInput = document.getElementById("autor");
 const moderadorInput = document.getElementById("moderador");
 const accionSelect = document.getElementById("accion");
+const endMessage = document.getElementById("endMessage");
+const sentinela = document.getElementById("sentinela");
+const tbody = document.querySelector("#tablaLogs tbody");
+const totalResultadosEl = document.getElementById("totalResultados");
 
-// Detectar cambios de filtros y reiniciar carga
 [autorInput, moderadorInput].forEach(input => {
   input.addEventListener("input", () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => reiniciarCarga(), 500);
+    debounceTimer = setTimeout(reiniciarCarga, 500);
   });
 });
 accionSelect.addEventListener("change", reiniciarCarga);
+document.getElementById("btnReset").addEventListener("click", () => {
+  autorInput.value = "";
+  moderadorInput.value = "";
+  accionSelect.selectedIndex = 0;
+  reiniciarCarga();
+});
 
 function reiniciarCarga() {
-  pagina = 1;
-  contador = 0;
-  document.querySelector("#tablaLogs tbody").innerHTML = "";
+  pagina = 1; contador = 0; hasMore = true;
+  tbody.innerHTML = ""; totalResultadosEl.textContent = "0";
+  endMessage.style.display = "none";
   cargarDatos(false);
 }
 
 async function poblarSelectAcciones() {
-  const select = document.getElementById("accion");
   try {
     const resp = await fetch("https://test-logs2.onrender.com/api/actions");
     const data = await resp.json();
     if (resp.ok && Array.isArray(data.actions)) {
-      select.innerHTML = '<option value="">Todas</option>';
+      accionSelect.innerHTML = '<option value="">Todas</option>';
       data.actions.forEach(accion => {
         const opt = document.createElement("option");
-        opt.value = accion;
-        opt.textContent = accion;
-        select.appendChild(opt);
+        opt.value = accion; opt.textContent = accion;
+        accionSelect.appendChild(opt);
       });
     }
-  } catch (e) { console.error("Error cargando acciones:", e); }
+  } catch {}
 }
 
-async function cargarDatos(append = false) {
-  if (cargando) return;
-  cargando = true;
-  loader.style.display = "block";
-  endMessage.style.display = "none"; // ocultar mensaje de fin en nueva carga
 
-  const autor = autorInput.value.trim();
-  const moderador = moderadorInput.value.trim();
-  const accion = accionSelect.value;
 
-  const params = new URLSearchParams();
-  params.append("page", pagina);
-  params.append("limit", porPagina);
-  if (autor) params.append("author", autor);
-  if (moderador) params.append("mod", moderador);
-  if (accion) params.append("action", accion);
-
-  try {
-    const resp = await fetch(`https://test-logs2.onrender.com/api/logs?${params.toString()}`);
-    const data = await resp.json();
-
-    if (resp.ok) {
-      totalResultados = data.total;
-
-      const tbody = document.querySelector("#tablaLogs tbody");
-      if (!append) tbody.innerHTML = "";
-
-      const mostrarBots = document.getElementById("filtrarBots").checked;
-      data.results.forEach(item => {
-        contador++;
-        if (!mostrarBots && esBot(item.mod)) return;
-        const fila = document.createElement("tr");
-        const fecha = new Date(item.created_utc * 1000).toLocaleString("en-GB");
-        fila.innerHTML = `
-          <td>${item.action}</td>
-          <td>${item.target_author || ""}</td>
-          <td>${item.mod}</td>
-          <td>${fecha}</td>
-          <td><button onclick='mostrarModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver más</button></td>
-          <td>${item.target_permalink ? `<a href="https://reddit.com${item.target_permalink}" target="_blank">Link</a>` : ""}</td>
-        `;
-        tbody.appendChild(fila);
-      });
-      document.getElementById("totalResultados").textContent = contador +"/"+totalResultados;
-      if (totalResultados < 25){
-        loader.style.display = "none";
-        endMessage.style.display = "block";
-      }
-
-      const totalPaginas = Math.ceil(totalResultados / porPagina);
-      console.log("totalPaginas: ",totalPaginas);
-      if (pagina >= totalPaginas) {
-        //endMessage.style.display = "block"; // mostrar mensaje fin
-      } else {
-        //pagina++;
-      }
-
-    } else {
-      alert("Error al cargar datos: " + (data.error || resp.statusText));
-    }
-  } catch (e) {
-    alert("Error al conectar con la API: " + e.message);
-  } finally {
-    cargando = false;
-    //loader.style.display = "block";
-  }
-}
-
-// Intersection Observer
-const observer = new IntersectionObserver(entries => {
-  if (entries[0].isIntersecting && !cargando) {
-    loader.style.display = "block";
-    endMessage.style.display = "none"; // mostrar mensaje fin
-
-    const totalPaginas = Math.ceil(totalResultados / porPagina);
-    console.log("total Resultados1: ",totalResultados);
-    console.log("porpagina1: ",porPagina);
-    console.log("pagina1: ",pagina);
-    const check = totalResultados - ((pagina) * 25);
-    console.log("check1: ",check);
-    if (check > 0) {
-      pagina++
-      cargarDatos(true);
-      loader.style.display = "block";
-    }else{
-      loader.style.display = "none";
-      endMessage.style.display = "block"; // mostrar mensaje fin
-      
-      console.log("FIN");
-    }
-  }
-}, { rootMargin: "100px" });
-observer.observe(sentinela);
-
-// Modal
 const modal = document.getElementById("miModal");
 const contenidoModal = document.getElementById("contenidoModal");
-const spanCerrar = document.querySelector(".cerrar");
+document.querySelector(".cerrar").onclick = () => modal.style.display = "none";
+window.onclick = e => { if (e.target == modal) modal.style.display = "none"; };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && modal.style.display === "block") modal.style.display = "none"; });
 
 function mostrarModal(item) {
   const clavesImportantes = ["action", "mod", "target_author", "created_utc", "details", "description","target_title", "target_permalink"];
@@ -327,6 +220,10 @@ function mostrarModal(item) {
   contenidoModal.innerHTML = `<div id=test style="overflow-x: auto; margin-bottom: 1rem;">${tablaHTML}</div>${seccionBody}`;
   modal.style.display = "block";
 }
+function generarFila(clave, valorFormateado) {
+  const etiqueta = etiquetas[clave] || clave;
+  return `<tr><td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${etiqueta}</td><td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td></tr>`;
+}
 
 function formatearValor(clave, valor) {
   if (clave === "created_utc") return new Date(valor * 1000).toLocaleString();
@@ -336,43 +233,80 @@ function formatearValor(clave, valor) {
   return valor ?? "N/A";
 }
 
-function generarFila(clave, valorFormateado) {
-  const etiqueta = etiquetas[clave] || clave;
-  return `<tr><td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${etiqueta}</td><td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td></tr>`;
+async function cargarDatos(append = false) {
+  const now = Date.now(), diff = now - lastRequestTime;
+  if (isLoading || !hasMore) return;
+  if (diff < 500) { setTimeout(() => cargarDatos(append), 500 - diff); return; }
+  lastRequestTime = now;
+
+  isLoading = true; loader.style.display = "block"; endMessage.style.display = "none";
+  observer.unobserve(sentinela);
+
+  const params = new URLSearchParams();
+  params.append("page", pagina);
+  params.append("limit", porPagina);
+  if (autorInput.value.trim()) params.append("author", autorInput.value.trim());
+  if (moderadorInput.value.trim()) params.append("mod", moderadorInput.value.trim());
+  if (accionSelect.value) params.append("action", accionSelect.value);
+
+  try {
+    const resp = await fetch(`https://test-logs2.onrender.com/api/logs?${params}`);
+    const data = await resp.json();
+    if (!resp.ok) return;
+
+    const results = Array.isArray(data.results) ? data.results : [];
+    if (!append) tbody.innerHTML = "";
+
+    results.forEach(item => {
+      contador++;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${item.action || ""}</td>
+        <td>${item.target_author ? `<a class="sin-estilo" href="https://reddit.com/user/${item.target_author}" target="_blank">${item.target_author}</a>` : ""}</td>
+        <td>${item.mod || ""}</td>
+        <td>${item.created_utc ? new Date(item.created_utc * 1000).toLocaleString("en-GB") : ""}</td>
+        <td><button>Ver más</button></td>
+        <td>${item.target_permalink ? `<a href="https://reddit.com${item.target_permalink}" target="_blank">Link</a>` : ""}</td>`;
+      tr.querySelector("button").addEventListener("click", () => mostrarModal(item));
+      tbody.appendChild(tr);
+    });
+
+    totalResultadosEl.textContent = `${contador}/${data.total ?? "?"}`;
+
+    if (results.length < porPagina) {
+      hasMore = false;
+      endMessage.style.display = "block";
+    } else {
+      hasMore = true; pagina++;
+      observer.observe(sentinela);
+    }
+
+    // 🔹 Rellenar pantalla si el sentinel ya está visible
+    if (hasMore && !isLoading) {
+      const sentinelRect = sentinela.getBoundingClientRect();
+      if (sentinelRect.top <= window.innerHeight) {
+        cargarDatos(true);
+      }
+    }
+
+  } catch {}
+  finally { isLoading = false; loader.style.display = "none"; }
 }
 
-spanCerrar.onclick = () => { modal.style.display = "none"; };
-window.onclick = e => { if (e.target == modal) modal.style.display = "none"; };
-document.addEventListener("keydown", e => { if (e.key === "Escape" && modal.style.display === "block") modal.style.display = "none"; });
+const observer = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting && !isLoading && hasMore) {
+    cargarDatos(true);
+  }
+}, { rootMargin: "200px" });
 
-function resetearFiltros() {
-  document.getElementById("autor").value = "";
-  document.getElementById("moderador").value = "";
-  document.getElementById("accion").selectedIndex = 0;
-  reiniciarCarga();
-}
-
-function esBot(nombre) {
-  const bots = ["AutoModerator", "empleadoEstatalBot"];
-  return bots.includes(nombre);
-}
-
-const checkboxBots = document.getElementById("filtrarBots");
-const textoBots = document.getElementById("textoBots");
-if (localStorage.getItem("mostrarBots") !== null) {
-  checkboxBots.checked = localStorage.getItem("mostrarBots") === "true";
-  actualizarTextoBots();
-}
-checkboxBots.addEventListener("change", () => {
-  localStorage.setItem("mostrarBots", checkboxBots.checked);
-  actualizarTextoBots();
-  reiniciarCarga();
+const botonForzar = document.querySelector('#botonForzar');
+botonForzar.addEventListener('click', () => {
+  if (!isLoading && hasMore) {
+    cargarDatos(true);
+  }
 });
-function actualizarTextoBots() {
-  textoBots.textContent = checkboxBots.checked ? "Ocultar acciones de bots" : "Mostrar acciones de bots";
-}
 
-// Inicial
+observer.observe(sentinela);
 poblarSelectAcciones();
 cargarDatos(false);
 </script>
