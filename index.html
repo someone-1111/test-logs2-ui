@@ -14,11 +14,36 @@
     th { background: #eee; }
     #test table td { text-align: left; }
     .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-    .modal-content { background-color: #fff; margin: 5% auto; padding: 1.5rem; border: 1px solid #888; width: 80%; border-radius: 8px; }
+    .modal-content { background-color: #fff; margin: 1% auto; padding: 1.5rem; border: 1px solid #888; width: 80%; border-radius: 8px; }
     .cerrar { float: right; font-size: 28px; font-weight: bold; cursor: pointer; color: #aaa; }
     .cerrar:hover { color: black; }
     a.sin-estilo { color: inherit; text-decoration: none; }
     #loader { display: none; text-align: center; padding: 1rem; color: #555; }
+    #tdAccionClave {
+      font-weight: bold;
+      font-weight: bold; 
+      padding: 6px; 
+      border: 1px solid #ccc;
+      
+      /*text-align: left;
+      padding: 6px;
+      border: 1px solid #ccc;*/
+    }
+    .tdModalClave{
+      font-weight: bold;
+      
+      border: 1px solid #ccc;
+      background:#f0f0f0;
+      text-align: center;
+      margin: 0;
+    }
+    .tdModalValor{
+      text-align: left;
+      margin: 0;
+    }
+
+
+    
     /* 📱 Ajustes para pantallas pequeñas */
     @media (max-width: 768px) {
       body {
@@ -137,12 +162,14 @@ const etiquetas = {
   description: "Descripción",
   target_permalink: "Enlace",
   body: "Contenido",
-  target_title: "Titulo"
+  target_title: "Titulo",
+  id: "ID"
 };
 
 let pagina = 1, porPagina = 25, isLoading = false, hasMore = true, contador = 0;
 let debounceTimer, lastRequestTime = 0;
 
+const url = "https://test-logs2.onrender.com/api/logs";
 const loader = document.getElementById("loader");
 const autorInput = document.getElementById("autor");
 const moderadorInput = document.getElementById("moderador");
@@ -151,6 +178,9 @@ const endMessage = document.getElementById("endMessage");
 const sentinela = document.getElementById("sentinela");
 const tbody = document.querySelector("#tablaLogs tbody");
 const totalResultadosEl = document.getElementById("totalResultados");
+
+
+
 
 [autorInput, moderadorInput].forEach(input => {
   input.addEventListener("input", () => {
@@ -187,7 +217,9 @@ async function poblarSelectAcciones() {
     }
   } catch {}
 }
-
+function renderMarkdown(md) {
+  return DOMPurify.sanitize(marked.parse(md || ''));
+}
 
 
 const modal = document.getElementById("miModal");
@@ -197,7 +229,7 @@ window.onclick = e => { if (e.target == modal) modal.style.display = "none"; };
 document.addEventListener("keydown", e => { if (e.key === "Escape" && modal.style.display === "block") modal.style.display = "none"; });
 
 function mostrarModal(item) {
-  const clavesImportantes = ["action", "mod", "target_author", "created_utc", "details", "description","target_title", "target_permalink"];
+  const clavesImportantes = ["action", "mod", "target_author", "created_utc", "details", "description","target_title", "target_permalink","id"];
   let tablaHTML = "<table style='width:100%; border-collapse: collapse;'>";
   clavesImportantes.forEach(clave => {
     const valor = item[clave];
@@ -220,6 +252,7 @@ function mostrarModal(item) {
   contenidoModal.innerHTML = `<div id=test style="overflow-x: auto; margin-bottom: 1rem;">${tablaHTML}</div>${seccionBody}`;
   modal.style.display = "block";
 }
+
 function generarFila(clave, valorFormateado) {
   const etiqueta = etiquetas[clave] || clave;
   return `<tr><td style="font-weight: bold; padding: 6px; border: 1px solid #ccc; background:#f0f0f0">${etiqueta}</td><td style="padding: 6px; border: 1px solid #ccc;">${valorFormateado}</td></tr>`;
@@ -233,65 +266,347 @@ function formatearValor(clave, valor) {
   return valor ?? "N/A";
 }
 
+let currentController = null;
+
 async function cargarDatos(append = false) {
-  const now = Date.now(), diff = now - lastRequestTime;
-  if (isLoading || !hasMore) return;
-  if (diff < 500) { setTimeout(() => cargarDatos(append), 500 - diff); return; }
-  lastRequestTime = now;
+    // Cancelar petición anterior si aún está en curso
+    if (currentController) currentController.abort();
+    currentController = new AbortController();
+    const signal = currentController.signal;
 
-  isLoading = true; loader.style.display = "block"; endMessage.style.display = "none";
-  observer.unobserve(sentinela);
+    const params = new URLSearchParams();
+    params.append("page", pagina);
+    params.append("limit", porPagina);
 
-  const params = new URLSearchParams();
-  params.append("page", pagina);
-  params.append("limit", porPagina);
-  if (autorInput.value.trim()) params.append("author", autorInput.value.trim());
-  if (moderadorInput.value.trim()) params.append("mod", moderadorInput.value.trim());
-  if (accionSelect.value) params.append("action", accionSelect.value);
+    console.log("pagina: "+pagina)
+    console.log("porPagina: "+porPagina)
+    if (autorInput.value.trim()) params.append("author", autorInput.value.trim());
+    if (moderadorInput.value.trim()) params.append("mod", moderadorInput.value.trim());
+    if (accionSelect.value) params.append("action", accionSelect.value);
 
-  try {
-    const resp = await fetch(`https://test-logs2.onrender.com/api/logs?${params}`);
-    const data = await resp.json();
-    if (!resp.ok) return;
 
-    const results = Array.isArray(data.results) ? data.results : [];
-    if (!append) tbody.innerHTML = "";
+    console.log("params: "+params.toString())
+    isLoading = true;
+    loader.style.display = "block";
+    const url2 = new URL(url);
+    url2.search = params.toString();
 
-    results.forEach(item => {
-      contador++;
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${item.action || ""}</td>
-        <td>${item.target_author ? `<a class="sin-estilo" href="https://reddit.com/user/${item.target_author}" target="_blank">${item.target_author}</a>` : ""}</td>
-        <td>${item.mod || ""}</td>
-        <td>${item.created_utc ? new Date(item.created_utc * 1000).toLocaleString("en-GB") : ""}</td>
-        <td><button>Ver más</button></td>
-        <td>${item.target_permalink ? `<a href="https://reddit.com${item.target_permalink}" target="_blank">Link</a>` : ""}</td>`;
-      tr.querySelector("button").addEventListener("click", () => mostrarModal(item));
-      tbody.appendChild(tr);
-    });
+    try {
+        const resp = await fetch(url2.toString(), { signal });
 
-    totalResultadosEl.textContent = `${contador}/${data.total ?? "?"}`;
+        if (!resp.ok) {
+            const text = await resp.text().catch(() => null);
+            console.error(`Error ${resp.status}: ${text || resp.statusText}`);
+            return;
+        }
 
-    if (results.length < porPagina) {
-      hasMore = false;
-      endMessage.style.display = "block";
-    } else {
-      hasMore = true; pagina++;
-      observer.observe(sentinela);
+        const data = await resp.json();
+
+        if (!append) {
+            tbody.innerHTML = "";
+            contador = 0;
+        }
+
+        const frag = document.createDocumentFragment();
+
+        data.results.forEach(item => {
+            const tr = document.createElement("tr");
+
+            // Columna: acción
+            const tdAction = document.createElement("td");
+            tdAction.textContent = item.action || "";
+            tr.appendChild(tdAction);
+
+            // Columna: autor con enlace
+            const tdAuthor = document.createElement("td");
+            if (item.target_author) {
+                const a = document.createElement("a");
+                a.href = `https://reddit.com/user/${encodeURIComponent(item.target_author)}`;
+                a.textContent = item.target_author;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                tdAuthor.appendChild(a);
+            } else {
+                tdAuthor.textContent = "";
+            }
+            tr.appendChild(tdAuthor);
+
+            // Columna: moderador
+
+            const tdMod = document.createElement("td");
+            tdMod.textContent = item.mod || "";
+            tr.appendChild(tdMod);
+
+            // Columna: fecha
+            const tdDate = document.createElement("td");
+            tdDate.textContent = item.created_utc
+                ? new Date(item.created_utc * 1000).toLocaleString("en-GB")
+                : "";
+            tr.appendChild(tdDate);
+
+            // Columna: botón "Más"
+            const tdButton = document.createElement("td");
+            const btn = document.createElement("button");
+            btn.textContent = "Ver detalles";
+            btn.type = "button";
+            btn.addEventListener("click", () => abrirModalSeguro(item));
+            tdButton.appendChild(btn);
+            tr.appendChild(tdButton);
+
+            frag.appendChild(tr);
+            //contador++;
+
+            const tdLink = document.createElement("td");
+            if (item.target_permalink) {
+                const a = document.createElement("a");
+                a.href = "https://reddit.com"+item.target_permalink;
+                a.textContent = "Link";
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                tdLink.appendChild(a);
+            } else {
+                tdLink.textContent = "";
+            }
+            tr.appendChild(tdLink);
+        });
+        
+
+        tbody.appendChild(frag);
+
+        hasMore = data.results.length > 0;
+        
+    pagina++;
+
+    
+
+    } catch (err) {
+        if (err.name !== "AbortError") {
+            console.error("Error en cargarDatos:", err);
+        }
+        contador++;
+    } finally {
+      
+        isLoading = false;
+        loader.style.display = "none";
+        contador++;
     }
-
-    // 🔹 Rellenar pantalla si el sentinel ya está visible
-    if (hasMore && !isLoading) {
-      const sentinelRect = sentinela.getBoundingClientRect();
-      if (sentinelRect.top <= window.innerHeight) {
-        cargarDatos(true);
-      }
-    }
-
-  } catch {}
-  finally { isLoading = false; loader.style.display = "none"; }
 }
+
+function abrirModalSeguro(item) {
+    const modal = document.getElementById("miModal");
+    console.log(modal);
+    const modalBody = modal.querySelector(".modal-content");
+    modalBody.innerHTML = ""; // limpiar contenido anterior
+
+    const div1 = document.createElement("div");
+    div1.setAttribute("id", "test");
+    div1.style.overflowX = "auto";
+    div1.style.marginBottom = "1rem";
+    modalBody.appendChild(div1);
+
+    const tituloModal = document.createElement("h2");
+    tituloModal.textContent = "Detalles del Log";
+    modalBody.appendChild(tituloModal);
+
+    
+    const tabla = document.createElement("table");
+    tabla.style.width = "100%";
+    tabla.style.borderCollapse = "collapse";
+    // Autor
+
+    if (item.target_author) {
+      const tr = document.createElement("tr");
+      const tdClave = document.createElement("td");
+      const tdValor = document.createElement("td");
+      tdClave.classList.add("tdModalClave");
+      tdValor.classList.add("tdModalValor");
+      
+      tdClave.textContent = `Autor`;
+      tdValor.textContent = `${item.target_author || ""}`;
+      
+      tr.appendChild(tdClave);
+      tr.appendChild(tdValor);
+      tabla.appendChild(tr);
+      div1.appendChild(tabla);
+    }
+    // Acción
+   
+    if (item.action) {
+      const trAccion = document.createElement("tr");
+      const tdAccionClave = document.createElement("td");
+      const tdAccionValor = document.createElement("td");
+      tdAccionClave.classList.add("tdModalClave");
+      tdAccionValor.classList.add("tdModalValor");
+      
+      tdAccionClave.textContent = `Accion`;
+      tdAccionValor.textContent = `${item.action || ""}`;
+  
+      trAccion.appendChild(tdAccionClave);
+      trAccion.appendChild(tdAccionValor);
+      tabla.appendChild(trAccion);
+      modalBody.appendChild(tabla);
+    }
+    // Fecha
+
+    if (item.created_utc) {
+      
+      const trFecha = document.createElement("tr");
+      const tdFechaClave = document.createElement("td");
+      const tdFechaValor = document.createElement("td");
+      tdFechaClave.classList.add("tdModalClave");
+      tdFechaValor.classList.add("tdModalValor");
+      
+      tdFechaClave.textContent = `Fecha`;
+      tdFechaValor.textContent = `${
+          item.created_utc
+              ? new Date(item.created_utc * 1000).toLocaleString("en-GB")
+              : ""
+      }`;
+      
+      trFecha.appendChild(tdFechaClave);
+      trFecha.appendChild(tdFechaValor);
+      tabla.appendChild(trFecha);
+      modalBody.appendChild(tabla);
+    }
+
+    // Moderador
+
+    if (item.mod) {
+      const trMod = document.createElement("tr");
+      const tdModClave = document.createElement("td");
+      const tdModValor = document.createElement("td");
+      tdModClave.classList.add("tdModalClave");
+      tdModValor.classList.add("tdModalValor");
+      
+      tdModClave.textContent = `Mod`;
+      tdModValor.textContent = `${item.mod || ""}`;
+      
+      trMod.appendChild(tdModClave);
+      trMod.appendChild(tdModValor);
+      tabla.appendChild(trMod);
+      modalBody.appendChild(tabla);
+    }
+
+    // Detalle
+
+    if (item.details) {
+      const trDetalle = document.createElement("tr");
+      const tdDetalleClave = document.createElement("td");
+      const tdDetalleValor = document.createElement("td");
+      tdDetalleClave.classList.add("tdModalClave");
+      tdDetalleValor.classList.add("tdModalValor");
+      
+      tdDetalleClave.textContent = `Detalle`;
+      tdDetalleValor.textContent = `${item.details || ""}`;
+      
+      trDetalle.appendChild(tdDetalleClave);
+      trDetalle.appendChild(tdDetalleValor);
+      tabla.appendChild(trDetalle);
+      modalBody.appendChild(tabla);
+    }
+
+    // Titulo
+
+    if (item.title) {
+      const trTitle = document.createElement("tr");
+      const tdTitleClave = document.createElement("td");
+      const tdTitleValor = document.createElement("td");
+      tdTitleClave.classList.add("tdModalClave");
+      tdTitleValor.classList.add("tdModalValor");
+      
+      tdTitleClave.textContent = `Titulo`;
+      tdTitleValor.textContent = `${item.target_title || ""}`;
+     
+      trTitle.appendChild(tdTitleClave);
+      trTitle.appendChild(tdTitleValor);
+      tabla.appendChild(trTitle);
+      modalBody.appendChild(tabla);
+    }
+
+    // Descripcion
+
+    if (item.description) {
+      const trDescripcion = document.createElement("tr");
+      const tdDescripcionClave = document.createElement("td");
+      const tdDescripcionValor = document.createElement("td");
+      tdDescripcionClave.classList.add("tdModalClave");
+      tdDescripcionValor.classList.add("tdModalValor");
+    
+      
+      tdDescripcionClave.textContent = `Descripcion`;
+      tdDescripcionValor.textContent = `${item.description || ""}`;
+      
+      trDescripcion.appendChild(tdDescripcionClave);
+      trDescripcion.appendChild(tdDescripcionValor);
+      tabla.appendChild(trDescripcion);
+      modalBody.appendChild(tabla);
+    }
+
+    // Permalink
+
+    if (item.target_permalink) {
+      const trPermalink = document.createElement("tr");
+      const tdPermalinkClave = document.createElement("td");
+      const tdPermalinkValor = document.createElement("td");
+      tdPermalinkClave.classList.add("tdModalClave");
+      tdPermalinkValor.classList.add("tdModalValor");
+
+      
+      //const pPermalink2 = document.createElement("p");
+      tdPermalinkClave.textContent = `Enlace`;
+
+      const base = "https://reddit.com"
+      const urlCompleta = base + item.target_permalink;
+      const pPermalink3 = document.createElement("a");
+      pPermalink3.href = urlCompleta;
+      pPermalink3.textContent = urlCompleta;
+      pPermalink3.target = "_blank";
+      pPermalink3.rel = "noopener noreferrer";
+      
+
+      //pPermalink2.appendChild(a);
+
+
+
+      tdPermalinkValor.appendChild(pPermalink3);
+      trPermalink.appendChild(tdPermalinkClave);
+      trPermalink.appendChild(tdPermalinkValor);
+      tabla.appendChild(trPermalink);
+      modalBody.appendChild(tabla);
+    }
+
+    
+
+    
+
+
+    // Texto (body)
+    if (item.target_body) {
+        const tituloh3 = document.createElement("h3");
+        tituloh3.textContent = "Contenido";
+        modalBody.appendChild(tituloh3);
+
+        const div2 = document.createElement("div");
+        div2.style.background = "#f9f9f9";
+        div2.style.border = "1px solid #ccc";
+        div2.style.padding = "1rem";
+        div2.style.borderRadius = "4px";
+        div2.style.maxHeight = "300px";
+        div2.style.overflowY = "auto";
+
+        div2.textContent = item.target_body;
+
+        //const html = marked.parse(item.target_body || "");
+        //div2.innerHTML = DOMPurify.sanitize(html);
+
+        modalBody.appendChild(div2);
+    }
+
+    
+
+    modal.style.display = "block";
+}
+
 
 const observer = new IntersectionObserver(entries => {
   if (entries[0].isIntersecting && !isLoading && hasMore) {
